@@ -98,13 +98,12 @@ p <- posterior |>
     strip.text = element_text(size = 12)
   ) +
   labs(
-    title = "The models estimate the GEV parameters equally well",
+    title = "Absolute % errors when using the posterior mean as our estimator",
     subtitle = str_c(
-      "Comparing difference in absolute % difference between posterior means and true values of parameters", "\n",
       "Larger points are estimates based on larger simulated datasets"
     ),
     x = expression(rho),
-    y = expression(abs(bar(theta)[post] - theta[true])),
+    y = expression(frac(abs(bar(theta)[post] - theta[true]),theta[true])),
     col = NULL,
     fill = NULL,
     caption = caption
@@ -155,9 +154,8 @@ p <- posterior |>
     strip.text = element_text(size = 12)
   ) +
   labs(
-    title = "The models estimate the GEV parameters equally well",
+    title = "Errors when using the posterior mean as our estimator",
     subtitle = str_c(
-      "Comparing difference between posterior means and true values of parameters", "\n",
       "Larger points are estimates based on larger simulated datasets"
     ),
     x = expression(rho),
