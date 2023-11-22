@@ -4,7 +4,6 @@ format: html
 editor: source
 ---
 
-
 ```{r setup}
 library(cmdstanr)
 library(evd)
@@ -27,8 +26,6 @@ theme_set(bggjphd::theme_bggj())
 
 
 ```
-
-
 
 ```{r}
 posterior <- open_dataset(
@@ -60,7 +57,6 @@ posterior <- posterior |>
     .by = simulation
     )
 ```
-
 
 ```{r}
 p <- posterior |>
@@ -226,12 +222,6 @@ ggsave(
 
 p
 ```
-
-
-
-
-
-
 
 ```{r}
 logit <- function(x) log(x / (1 - x))

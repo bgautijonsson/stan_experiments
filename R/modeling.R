@@ -27,6 +27,21 @@ fit_copula_model <- function(params, n_replicate, rho, output_dir) {
     y_test = y_test
   )
   
+  inits <- y |> as.numeric() |> evd::fgev() |> purrr::pluck("estimate") |> as.list()
+  
+  names(inits) <- c("mu", "sigma", "xi")
+  
+  inits_copula <- inits
+  inits$xi <- pmin(inits$xi, 1)
+  
+  inits_copula <- list(
+    inits,
+    inits,
+    inits,
+    inits
+  )
+  
+  
   
   model_copula <- cmdstan_model(here("Stan", "gev_gauss_copula_prec_shared_params.stan"))
   
@@ -36,7 +51,8 @@ fit_copula_model <- function(params, n_replicate, rho, output_dir) {
     parallel_chains = 4,
     iter_warmup = 1000,
     iter_sampling = 1000,
-    show_exceptions = F
+    show_exceptions = F,
+    init = inits_copula
   )
   
   out_copula <- results_copula$draws(variables = c("mu", "sigma", "xi", "rho", "log_lik")) |> 
@@ -47,6 +63,12 @@ fit_copula_model <- function(params, n_replicate, rho, output_dir) {
     )
   
 
+  inits_iid <- list(
+    inits,
+    inits,
+    inits,
+    inits
+  )
   
   model_iid <- cmdstan_model(here("Stan", "gev_shared_params.stan"))
   
@@ -56,7 +78,8 @@ fit_copula_model <- function(params, n_replicate, rho, output_dir) {
     parallel_chains = 4,
     iter_warmup = 1000,
     iter_sampling = 1000,
-    show_exceptions = F
+    show_exceptions = F,
+    init = inits_iid
   )
   
   out_iid <- results_iid$draws(variables = c("mu", "sigma", "xi", "log_lik")) |> 
@@ -101,26 +124,32 @@ require(readr)
 require(posterior)
 require(arrow)
 
-i <- here("results", "Stan", "copula_data", "shared_params", "posterior") |> 
-  list.files() |> 
-  parse_number() |> 
+replicate_vector <- c(5, 10, 20, 40, 80, 160, 320)
+replicate_weights <- 1 / log(replicate_vector)
+replicate_weights <- replicate_weights / sum(replicate_weights)
+
+id_vector <- c(5, 10, 20, 40, 80)
+id_weights <- 1 / log(id_vector)
+id_weights <- id_weights / sum(id_weights)
+
+i <- here("results", "Stan", "copula_data", "shared_params", "posterior") |>
+  list.files() |>
+  parse_number() |>
   max()
 i <- i + 1
 # i <- 1
 
 while (TRUE) {
-  n_replicate <- sample(c(5, 10, 20, 40, 80, 160, 320), size = 1)
-  n_id <- sample(c(5, 10, 20, 40, 80), size = 1)
+  n_replicate <- sample(replicate_vector, size = 1, prob = replicate_weights)
+  n_id <- sample(id_vector, size = 1, prob = id_weights)
   rho <- runif(n = 1) * rbinom(1, 1, 0.9)
   
   params <- crossing(
     mu = 6,
     sigma = 3,
-    xi = 0.1
-  ) |> 
-    crossing(
-      id = seq_len(n_id)
-    )
+    xi = 0.1,
+    id = seq_len(n_id)
+  )
   
   output_dir <- here("Results", "Stan", "copula_data", "shared_params", "posterior", glue("simulation={i}"))
   
@@ -132,3 +161,5 @@ while (TRUE) {
   fit_copula_model(params = params, n_replicate = n_replicate, rho = rho, output_dir = output_dir)
   i <- i + 1
 }
+
+# Testing looser restrictions on xi from iter = 219

@@ -13,7 +13,7 @@ data {
 parameters {
   real<lower = 0> mu;
   real<lower = 0> sigma;
-  real<lower = 0, upper = 0.5> xi;
+  real<lower = -0.5, upper = 1> xi;
 }
 
 transformed parameters {
