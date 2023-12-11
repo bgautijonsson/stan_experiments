@@ -98,7 +98,7 @@ make_AR_cor_matrix_1d <- function(n_id, rho = 0.5) {
   P <- P / (1 - rho^2)
   
   P_cor <- solve(P)
-  P_cor |> cov2cor()
+  # P_cor |> cov2cor()
 }
 
 

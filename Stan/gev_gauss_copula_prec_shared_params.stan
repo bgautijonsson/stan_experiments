@@ -28,7 +28,6 @@ model {
     }
     target += normal_copula_prec_lpdf(U | Omega);
   }
-  
 }
 
 generated quantities {
