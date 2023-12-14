@@ -77,6 +77,20 @@ sample_gaussian_variables <- function(cor_matrix, n_replicates) {
 #' @return A correlation matrix
 #' @export
 make_AR_cor_matrix_1d <- function(n_id, rho = 0.5) {
+  P <- make_AR_prec_matrix_1d(n_id = n_id, rho = rho)
+  
+  P_cor <- solve(P)
+  P_cor
+}
+
+#' Make an n_id x n_id precision matrix for a 1-dimensional AR(1) process
+#'
+#' @param n_id number of IDs
+#' @param rho AR parameter
+#'
+#' @return A precision matrix
+#' @export
+make_AR_prec_matrix_1d <- function(n_id, rho = 0.5) {
   P <- matrix(
     0, 
     nrow = n_id,
@@ -96,9 +110,6 @@ make_AR_cor_matrix_1d <- function(n_id, rho = 0.5) {
   }
   
   P <- P / (1 - rho^2)
-  
-  P_cor <- solve(P)
-  # P_cor |> cov2cor()
 }
 
 

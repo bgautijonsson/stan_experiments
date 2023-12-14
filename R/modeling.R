@@ -23,16 +23,47 @@ fit_copula_model <- function(params, n_replicate, rho, output_dir) {
   stan_data <- list(
     n_replicate = n_replicate,
     n_id = nrow(params),
+    
     y = y,
     y_test = y_test
   )
   
   inits <- y |> as.numeric() |> evd::fgev() |> purrr::pluck("estimate") |> as.list()
+
+  
+  
   
   names(inits) <- c("mu", "sigma", "xi")
   
-  inits_copula <- inits
+  Z <- d |> 
+    select(replicate, id, Z) |> 
+    pivot_wider(names_from = id, values_from = Z) |> 
+    select(-replicate) |> 
+    as.matrix()
+  
+  get_rho <- function(rho) {
+    scl <- sqrt(1 / (1 - rho^2))
+    out <- 0
+    for (i in seq_len(nrow(Z))) {
+      x <- numeric(n_id)
+      x[1:(n_id - 1)] <- scl * Z[i, 1:(n_id - 1)] - scl * rho * Z[i, 2:n_id]
+      x[n_id] <- scl * sqrt(1 - rho^2) * Z[i, n_id]
+      
+      out <- out - n_id / 2 * log(2 * pi) - (n_id - 1) * (log(1 + rho) + log(1 - rho)) / 2 - sum(x^2)/2
+    }
+    out <- out - sum(dnorm(Z, log = TRUE))
+    out
+  }
+  
+  inits$rho <- optimize(
+    get_rho, 
+    interval = c(-1, 1),
+    maximum = TRUE
+  )$maximum
+  
   inits$xi <- pmin(inits$xi, 1)
+  
+  
   
   inits_copula <- list(
     inits,
@@ -55,12 +86,25 @@ fit_copula_model <- function(params, n_replicate, rho, output_dir) {
     init = inits_copula
   )
   
+  # results_copula$draws() |> 
+  #   mcmc_hex(
+  #     pars = c("mu", "rho")
+  #   )
+  # 
+  # results_copula$draws() |> 
+  #   mcmc_hex(
+  #     pars = c("sigma", "rho")
+  #   )
+  
   out_copula <- results_copula$draws(variables = c("mu", "sigma", "xi", "rho", "log_lik")) |> 
     as_draws_df() |> 
     summarise_draws() |> 
     mutate(
-      model = "copula"
+      model = "copula",
+      time = results_copula$time()$total
     )
+  
+  
   
 
   inits_iid <- list(
@@ -86,7 +130,8 @@ fit_copula_model <- function(params, n_replicate, rho, output_dir) {
     as_draws_df() |> 
     summarise_draws() |> 
     mutate(
-      model = "iid"
+      model = "iid",
+      time = results_iid$time()$total
     )
   
   
@@ -94,7 +139,7 @@ fit_copula_model <- function(params, n_replicate, rho, output_dir) {
     bind_rows(
       out_iid
     ) |> 
-    select(model, variable, posterior_mean = mean, rhat) |> 
+    select(model, variable, posterior_mean = mean, rhat, time) |> 
     left_join(
       params |> 
         distinct(mu, sigma, xi) |> 
@@ -124,7 +169,7 @@ require(readr)
 require(posterior)
 require(arrow)
 
-replicate_vector <- c(5, 10, 20, 40, 80, 160, 320)
+replicate_vector <- c(5, 10, 20, 40, 80, 160)
 replicate_weights <- 1 / log(replicate_vector)
 replicate_weights <- replicate_weights / sum(replicate_weights)
 
@@ -132,22 +177,22 @@ id_vector <- c(5, 10, 20, 40, 80)
 id_weights <- 1 / log(id_vector)
 id_weights <- id_weights / sum(id_weights)
 
-i <- here("results", "Stan", "copula_data", "shared_params", "posterior") |>
-  list.files() |>
-  parse_number() |>
-  max()
-i <- i + 1
-# i <- 1
+# i <- here("results", "Stan", "copula_data", "shared_params", "posterior") |>
+#   list.files() |>
+#   parse_number() |>
+#   max()
+# i <- i + 1
+i <- 1
 
 while (TRUE) {
   n_replicate <- sample(replicate_vector, size = 1, prob = replicate_weights)
   n_id <- sample(id_vector, size = 1, prob = id_weights)
-  rho <- runif(n = 1) * rbinom(1, 1, 0.9)
+  rho <- runif(n = 1, min = -1, max = 1) * rbinom(1, 1, 0.9)
   
   params <- crossing(
-    mu = 6,
-    sigma = 3,
-    xi = 0.1,
+    mu = 10,
+    sigma = 3.8,
+    xi = 0.15,
     id = seq_len(n_id)
   )
   

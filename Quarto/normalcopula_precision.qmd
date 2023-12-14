@@ -40,7 +40,14 @@ posterior <- open_dataset(
     rho = max(true_value[variable == "rho"]),
     .by = simulation
   )
-caption <- bquote(paste("Based on ", .(max(posterior$simulation)), " simulations from a multivariate distribution with GEV(6, 3, 0.1) margins and AR(1) copula where the dependence parameter, ", rho, ", is drawn from a Uniform(0, 1) distribution."))
+caption <- bquote(
+  paste(
+    "Based on ", 
+    .(max(posterior$simulation)), 
+    " simulations from a multivariate distribution with GEV(6, 3, 0.1) margins and AR(1) copula where the dependence parameter, ",
+    rho, ", is drawn from a Uniform(-1, 1) distribution with probability 0.9 and is equal to 0 with probability 0.1."
+  )
+)
 ```
 
 ```{r}
@@ -58,7 +65,7 @@ posterior <- posterior |>
   filter(
     max(rhat) < 1.1,
     .by = simulation
-    )
+  )
 ```
 
 
@@ -69,19 +76,22 @@ p <- posterior |>
     variable != "log_lik"
   ) |> 
   mutate(
-    error = abs(posterior_mean - true_value) / true_value,
+    error = abs(posterior_mean - true_value) / abs(true_value),
     model = case_match(
       model,
       "copula" ~ "AR(1) Copula",
       "iid" ~ "i.i.d. Copula"
     )
   ) |> 
+  filter(
+    is.finite(error)
+  ) |> 
   ggplot(aes(rho, error, col = model, fill = model)) +
   geom_smooth(alpha = 0.4) +
   geom_point(aes(size = n_replicate * n_id), alpha = 0.2) +
   geom_hline(yintercept = 0, lty = 2) +
   scale_x_continuous(
-    limits = c(0, 1),
+    limits = c(-1, 1),
     expand = expansion()
   ) +
   scale_y_continuous(
@@ -137,7 +147,7 @@ p <- posterior |>
   geom_point(aes(size = n_replicate * n_id), alpha = 0.2) +
   geom_hline(yintercept = 0, lty = 2) +
   scale_x_continuous(
-    limits = c(0, 1),
+    limits = c(-1, 1),
     expand = expansion()
   ) +
   scale_y_continuous(
@@ -196,7 +206,7 @@ p <- posterior |>
     size = 5
   ) +
   scale_x_continuous(
-    limits = c(0, 1),
+    limits = c(-1, 1),
     expand = expansion()
   ) +
   scale_color_brewer(palette = "Set1") +
@@ -258,13 +268,13 @@ p <- posterior |>
   geom_smooth(
     col = "black", 
     alpha = 0.1
-    ) +
+  ) +
   geom_point(
     alpha = 0.5,
     aes(size = (n_replicate * n_id))
   ) +
   scale_x_continuous(
-    limits = c(0, 1),
+    limits = c(-1, 1),
     expand = expansion()
   ) +
   scale_color_brewer(palette = "Set1") +
@@ -283,7 +293,7 @@ p <- posterior |>
     y = expression(paste(elppd[AR(1)] - elppd[i.i.d.])),
     caption = caption
   )
-  
+
 
 ggsave(
   plot = p,
@@ -292,5 +302,64 @@ ggsave(
 )
 
 p
+```
+
+
+```{r}
+tab_dat <- posterior |> 
+  distinct(
+    model, simulation, n_replicate, n_id, time
+  ) |> 
+  pivot_wider(
+    names_from = model, values_from = time
+  ) |> 
+  mutate(
+    diff = copula / iid,
+    n_replicate = n_replicate,
+    n_id = n_id
+  ) |> 
+  summarise(
+    model = list(lm(log(diff) ~ n_replicate + n_id - 1)),
+    tidied = map(model, tidy, exponentiate = TRUE, conf.int = TRUE),
+    r2 = map_dbl(model, \(x) glance(x)$r.squared)
+  ) |> 
+  select(tidied, r2) |> 
+  unnest(tidied) |> 
+  select(term, estimate, contains("conf"), r2) |> 
+  mutate_at(
+    vars(-term, -r2),
+    \(x) x - 1
+  ) |> 
+  mutate(
+    term = case_match(
+      term,
+      "n_replicate" ~ "For each replicate",
+      "n_id" ~ "For each ID",
+      .default = term
+    )
+  )
+
+tab_dat |> 
+  gt() |> 
+  cols_hide(
+    r2
+  ) |> 
+  cols_label(
+    term = "Term",
+    estimate = "Estimate",
+    conf.low = "Lower",
+    conf.high = "Upper"
+  ) |> 
+  tab_spanner(
+    label = "95% CI",
+    columns = contains("conf")
+  ) |> 
+  fmt_percent(
+    columns = -term
+  ) |> 
+  tab_header(
+    title = "How much more time does the Copula model take to sample?",
+    subtitle = glue("R2 = {unique(round(tab_dat$r2, digits = 3))}")
+  )
 ```
 

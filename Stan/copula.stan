@@ -1,3 +1,24 @@
+real normal_ar1_lpdf(vector x, real rho) {
+    int N = num_elements(x);
+    real out;
+    real log_det = - (N - 1) * (log(1 + rho) + log(1 - rho)) / 2;
+    vector[N] q;
+    real scl = sqrt(1 / (1 - rho^2));
+    
+    q[1:(N - 1)] = scl * (x[1:(N - 1)] - rho * x[2:N]);
+    q[N] = x[N];
+    
+    out = log_det - dot_self(q) / 2;
+    
+    return out;
+  }
+  
+  real normal_copula_ar1_lpdf(vector U, real rho) {
+    int N = rows(U);
+    vector[N] Z = inv_Phi(U);
+    return normal_ar1_lpdf(Z | rho) + dot_self(Z) / 2;
+  }
+
 real normal_copula_lpdf(vector U, matrix L) {
   int N = rows(U);
   vector[N] Z = inv_Phi(U);
