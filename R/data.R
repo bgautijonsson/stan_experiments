@@ -91,25 +91,21 @@ make_AR_cor_matrix_1d <- function(n_id, rho = 0.5) {
 #' @return A precision matrix
 #' @export
 make_AR_prec_matrix_1d <- function(n_id, rho = 0.5) {
-  P <- matrix(
+  Q <- matrix(
     0, 
     nrow = n_id,
     ncol = n_id
   )
-  diag(P) <- 1
+  diag(Q) <- 1 + rho^2
+  
   for (i in seq(1, n_id - 1)) {
-    P[i, i + 1] <- -rho
+    Q[i, i + 1] <- -rho
+    Q[i + 1, i] <- -rho
   }
-  
-  for (i in seq(2, n_id)) {
-    P[i, i - 1] <- -rho
-  }
-  
-  for (i in seq(2, n_id - 1)) {
-    P[i, i] <- 1 + rho^2
-  }
-  
-  P <- P / (1 - rho^2)
+  Q[1, 1] <- 1
+  Q[n_id, n_id] <- 1
+  Q <- Q / (1 - rho^2)
+  Q
 }
 
 

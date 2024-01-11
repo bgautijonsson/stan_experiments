@@ -25,7 +25,7 @@ library(geomtextpath)
 
 theme_set(bggjphd::theme_bggj())
 
-
+alpha <- 0.05
 ```
 
 
@@ -39,6 +39,14 @@ posterior <- open_dataset(
   mutate(
     rho = max(true_value[variable == "rho"]),
     .by = simulation
+  ) |> 
+  mutate(
+    model = fct_relevel(model, "copula", "two step", "iid") |> 
+    fct_recode(
+      "AR(1) Copula" = "copula",
+      "i.i.d. Copula" = "iid",
+      "Two-Step Estimation" = "two step",
+    )
   )
 caption <- bquote(
   paste(
@@ -76,19 +84,14 @@ p <- posterior |>
     variable != "log_lik"
   ) |> 
   mutate(
-    error = abs(posterior_mean - true_value) / abs(true_value),
-    model = case_match(
-      model,
-      "copula" ~ "AR(1) Copula",
-      "iid" ~ "i.i.d. Copula"
-    )
+    error = abs(posterior_mean - true_value) / abs(true_value)
   ) |> 
   filter(
     is.finite(error)
   ) |> 
   ggplot(aes(rho, error, col = model, fill = model)) +
   geom_smooth(alpha = 0.4) +
-  geom_point(aes(size = n_replicate * n_id), alpha = 0.2) +
+  geom_point(aes(size = n_replicate * n_id), alpha = alpha) +
   geom_hline(yintercept = 0, lty = 2) +
   scale_x_continuous(
     limits = c(-1, 1),
@@ -128,6 +131,8 @@ ggsave(
 p
 ```
 
+
+
 ```{r}
 p <- posterior |>
   filter(
@@ -135,16 +140,11 @@ p <- posterior |>
     variable != "log_lik"
   ) |> 
   mutate(
-    error = posterior_mean - true_value,
-    model = case_match(
-      model,
-      "copula" ~ "AR(1) Copula",
-      "iid" ~ "i.i.d. Copula"
-    )
+    error = posterior_mean - true_value
   ) |> 
   ggplot(aes(rho, error, col = model, fill = model)) +
   geom_smooth(alpha = 0.4) +
-  geom_point(aes(size = n_replicate * n_id), alpha = 0.2) +
+  geom_point(aes(size = n_replicate * n_id), alpha = alpha) +
   geom_hline(yintercept = 0, lty = 2) +
   scale_x_continuous(
     limits = c(-1, 1),
@@ -188,17 +188,12 @@ p
 p <- posterior |> 
   filter(variable == "log_lik") |> 
   mutate(
-    mean_log_lik = posterior_mean / (n_replicate * n_id),
-    model = case_match(
-      model,
-      "copula" ~ "AR(1) Copula",
-      "iid" ~ "i.i.d. Copula"
-    )
+    mean_log_lik = posterior_mean / (n_replicate * n_id)
   ) |> 
   ggplot(aes(rho, mean_log_lik, col = model)) +
-  geom_smooth(aes(fill = model), color = NA, alpha = 0.1) +
+  geom_smooth(aes(fill = model), color = NA, alpha = 0.4) +
   geom_point(
-    alpha = 0.5,
+    alpha = alpha,
     aes(size = (n_replicate * n_id))
   ) +
   geom_labelsmooth(
@@ -211,7 +206,7 @@ p <- posterior |>
   ) +
   scale_color_brewer(palette = "Set1") +
   scale_fill_brewer(palette = "Set1") +
-  scale_hjust_manual(values = c(0.6, 0.4)) +
+  scale_hjust_manual(values = c(0.1, 0.5, 0.95)) +
   theme(
     legend.position = "none",
     plot.margin = margin(t = 5, r = 15, b = 5, l = 15)
@@ -247,31 +242,29 @@ inv_logit <- function(x) 1 / (1 + exp(-x))
 p <- posterior |> 
   filter(variable == "log_lik") |> 
   mutate(
-    mean_log_lik = posterior_mean / (n_replicate * n_id),
-    model = case_match(
-      model,
-      "copula" ~ "AR(1) Copula",
-      "iid" ~ "i.i.d. Copula"
-    )
+    mean_log_lik = posterior_mean / (n_replicate * n_id)
   ) |> 
-  arrange(desc(model)) |> 
+  select(
+    model, mean_log_lik, simulation, rho, n_id, n_replicate
+  ) |> 
+  pivot_wider(names_from = model, values_from = mean_log_lik) |> 
+  pivot_longer(c(-"i.i.d. Copula", -simulation, -rho, -n_id, -n_replicate)) |> 
   mutate(
-    diff = c(0, (diff((mean_log_lik)))),
-    .by = simulation
+    diff = value - `i.i.d. Copula`
   ) |> 
-  filter(model != "i.i.d. Copula") |> 
-  # mutate(
-  #   rho = log(rho / (1 - rho))
-  # ) |> 
   ggplot(aes(rho, diff)) +
   geom_hline(yintercept = 0, lty = 2, alpha = 0.5, linewidth = 0.5) + 
   geom_smooth(
-    col = "black", 
+    aes(col = name, fill = name),
     alpha = 0.1
   ) +
+  geom_labelsmooth(
+    aes(col = name, label = name, hjust = name),
+    text_only = TRUE
+  ) +
   geom_point(
-    alpha = 0.5,
-    aes(size = (n_replicate * n_id))
+    alpha = alpha,
+    aes(size = (n_replicate * n_id), col = name)
   ) +
   scale_x_continuous(
     limits = c(-1, 1),
@@ -279,6 +272,7 @@ p <- posterior |>
   ) +
   scale_color_brewer(palette = "Set1") +
   scale_fill_brewer(palette = "Set1") +
+  scale_hjust_manual(values = c(0.6, 0.4)) +
   theme(
     legend.position = "none",
     plot.margin = margin(t = 5, r = 15, b = 5, l = 15)
@@ -305,61 +299,12 @@ p
 ```
 
 
+
 ```{r}
-tab_dat <- posterior |> 
-  distinct(
-    model, simulation, n_replicate, n_id, time
-  ) |> 
-  pivot_wider(
-    names_from = model, values_from = time
-  ) |> 
-  mutate(
-    diff = copula / iid,
-    n_replicate = n_replicate,
-    n_id = n_id
-  ) |> 
-  summarise(
-    model = list(lm(log(diff) ~ n_replicate + n_id - 1)),
-    tidied = map(model, tidy, exponentiate = TRUE, conf.int = TRUE),
-    r2 = map_dbl(model, \(x) glance(x)$r.squared)
-  ) |> 
-  select(tidied, r2) |> 
-  unnest(tidied) |> 
-  select(term, estimate, contains("conf"), r2) |> 
-  mutate_at(
-    vars(-term, -r2),
-    \(x) x - 1
-  ) |> 
-  mutate(
-    term = case_match(
-      term,
-      "n_replicate" ~ "For each replicate",
-      "n_id" ~ "For each ID",
-      .default = term
-    )
-  )
-
-tab_dat |> 
-  gt() |> 
-  cols_hide(
-    r2
-  ) |> 
-  cols_label(
-    term = "Term",
-    estimate = "Estimate",
-    conf.low = "Lower",
-    conf.high = "Upper"
-  ) |> 
-  tab_spanner(
-    label = "95% CI",
-    columns = contains("conf")
-  ) |> 
-  fmt_percent(
-    columns = -term
-  ) |> 
-  tab_header(
-    title = "How much more time does the Copula model take to sample?",
-    subtitle = glue("R2 = {unique(round(tab_dat$r2, digits = 3))}")
-  )
+posterior |>
+  filter(
+    str_detect(model, "Two")
+  ) |>
+  distinct(simulation, Q_diag_mult) |>
+  count(Q_diag_mult)
 ```
-

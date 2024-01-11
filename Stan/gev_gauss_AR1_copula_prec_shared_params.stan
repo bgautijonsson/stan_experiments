@@ -8,13 +8,13 @@ data {
   int<lower = 0> n_id;
   array[n_replicate, n_id] real y;
   array[n_replicate, n_id] real y_test;
-  matrix[n_id, n_id] Q;
 }
 
 parameters {
   real<lower = 0> mu;
   real<lower = 0> sigma;
   real<lower = -0.5, upper = 1> xi;
+  real<lower = -1, upper = 1> rho;
 }
 
 model {
@@ -24,7 +24,7 @@ model {
       U[j] = gev_cdf(y[i, j] | mu, sigma, xi);
       target += gev_lpdf(y[i, j] | mu, sigma, xi);
     } 
-    target += normal_copula_prec_lpdf(U | Q);
+    target += normal_copula_ar1_lpdf(U | rho);
   }
 }
  
@@ -38,10 +38,8 @@ generated quantities {
         U[j] = gev_cdf(y_test[i, j] | mu, sigma, xi);
         log_lik += gev_lpdf(y_test[i, j] | mu, sigma, xi);
       }
-      log_lik += normal_copula_prec_lpdf(U | Q);
+      log_lik += normal_copula_ar1_lpdf(U | rho);
     }
   }
   
 }
-
-
