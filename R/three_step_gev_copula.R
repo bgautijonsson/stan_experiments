@@ -1,4 +1,4 @@
-fit_twostep_model <- function(
+fit_threestep_model <- function(
     n_replicate,
     n_id,
     params,
@@ -92,6 +92,7 @@ fit_twostep_model <- function(
   #   iter_warmup = 1000,
   #   iter_sampling = 1000
   # )
+
 
   # estimates_copula <- results_copula |>
   #   summarise_draws() |>
@@ -209,7 +210,7 @@ fit_twostep_model <- function(
   ) |>
     summarise_draws() |> # nolint
     mutate( # nolint
-      model = "two step",
+      model = "three step",
       time = total_time,
       Q_diag_mult = diag_post / diag_pre
     )

@@ -60,3 +60,26 @@ real icar_normal_lpdf(vector x, int N, array[] int node1, array[] int node2) {
   return  -0.5 * (dot_self((x[node1] - x[node2]))) +
   normal_lpdf(sum(x) | 0, 0.001 * N);
 }
+
+real normal_prec_chol_lpdf(vector x, array[] int n_values, array[] int index, vector values, real log_det) {
+  int N = num_elements(x);
+  int counter = 1;
+  vector[N] q = rep_vector(0, N);
+
+  for (i in 1:N) {
+    for (j in 1:n_values[i]) {
+      q[i] += values[counter] * x[index[counter]];
+      counter += 1;
+    }
+  }
+
+  return log_det - dot_self(q) / 2;
+
+}
+
+real normal_copula_prec_chol_lpdf(vector U, array[] int n_values, array[] int index, vector value, real log_det) {
+  int N = rows(U);
+  vector[N] Z = inv_Phi(U);
+
+  return normal_prec_chol_lpdf(Z | n_values, index, value, log_det) + dot_self(Z) / 2;
+}

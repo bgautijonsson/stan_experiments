@@ -128,7 +128,7 @@ fit_copula_model <- function(params, n_replicate, rho, output_dir) {
     parallel_chains = 4,
     iter_warmup = 1000,
     iter_sampling = 1000,
-    show_exceptions = F,
+    show_exceptions = FALSE,
     init = inits_iid
   )
 
@@ -146,12 +146,13 @@ fit_copula_model <- function(params, n_replicate, rho, output_dir) {
 
   out_twostep <- fit_twostep_model(
     n_replicate = n_replicate,
-    n_id,
-    params,
+    n_id = n_id,
+    params = params,
     d,
-    y,
-    y_test
+    y = y,
+    y_test = y_test
   )
+
 
   out_copula |>
     bind_rows(
@@ -164,7 +165,11 @@ fit_copula_model <- function(params, n_replicate, rho, output_dir) {
     left_join(
       params |>
         distinct(mu, sigma, xi) |>
-        pivot_longer(c(everything()), names_to = "variable", values_to = "true_value") |>
+        pivot_longer(
+          c(everything()),
+          names_to = "variable",
+          values_to = "true_value"
+        ) |>
         add_row(
           variable = "rho", true_value = rho
         ),
@@ -189,12 +194,12 @@ require(posterior)
 require(arrow)
 library(stringr)
 
-replicate_vector <- c(5, 10, 20, 40, 80, 160, 320)
-replicate_weights <- 1 / log(replicate_vector)
+replicate_vector <- c(5, 10, 20, 40, 80, 160)
+replicate_weights <- rep(1, length(replicate_vector))
 replicate_weights <- replicate_weights / sum(replicate_weights)
 
-id_vector <- c(5, 10, 20, 40, 80, 160, 320)
-id_weights <- 1 / log(id_vector)
+id_vector <- c(5, 10, 20, 40, 80)
+id_weights <- rep(1, length(id_vector))
 id_weights <- id_weights / sum(id_weights)
 
 i <- here("results", "Stan", "copula_data", "shared_params", "posterior") |>
@@ -203,7 +208,6 @@ i <- here("results", "Stan", "copula_data", "shared_params", "posterior") |>
   max()
 i <- i + 1
 # i <- 1
-
 while (TRUE) {
   n_replicate <- sample(replicate_vector, size = 1, prob = replicate_weights)
   n_id <- sample(id_vector, size = 1, prob = id_weights)
@@ -226,5 +230,3 @@ while (TRUE) {
   fit_copula_model(params = params, n_replicate = n_replicate, rho = rho, output_dir = output_dir)
   i <- i + 1
 }
-
-# Testing looser restrictions on xi from iter = 219

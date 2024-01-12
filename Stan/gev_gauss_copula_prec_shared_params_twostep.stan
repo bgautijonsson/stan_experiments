@@ -24,12 +24,9 @@ parameters {
 
 model {
   for (i in 1:n_replicate) {
-    vector[n_id] U;
-    for (j in 1:n_id) {    
-      U[j] = gev_cdf(y[i, j] | mu, sigma, xi);
+    for (j in 1:n_id) {
       target += gev_lpdf(y[i, j] | mu, sigma, xi);
-    } 
-    target += normal_copula_prec_chol_lpdf(U | n_values, index, value, log_det_Q);
+    }
   }
 }
  

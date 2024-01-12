@@ -41,13 +41,14 @@ posterior <- open_dataset(
     .by = simulation
   ) |> 
   mutate(
-    model = fct_relevel(model, "copula", "two step", "iid") |> 
+    model = fct_relevel(model, "copula", "two step", "three step", "iid") |> 
     fct_recode(
       "AR(1) Copula" = "copula",
       "i.i.d. Copula" = "iid",
       "Two-Step Estimation" = "two step",
+      "Three-Step Estimation" = "three step"
     )
-  )
+  ) 
 caption <- bquote(
   paste(
     "Based on ", 
@@ -91,7 +92,6 @@ p <- posterior |>
   ) |> 
   ggplot(aes(rho, error, col = model, fill = model)) +
   geom_smooth(alpha = 0.4) +
-  geom_point(aes(size = n_replicate * n_id), alpha = alpha) +
   geom_hline(yintercept = 0, lty = 2) +
   scale_x_continuous(
     limits = c(-1, 1),
@@ -104,31 +104,35 @@ p <- posterior |>
   scale_color_brewer(palette = "Set1") +
   scale_fill_brewer(palette = "Set1") +
   guides(size = "none") +
-  facet_wrap("variable", scales = "free_y", labeller = label_parsed) +
+  facet_grid(
+    rows = vars(variable),
+    cols = vars(n_replicate), 
+    scales = "free_y", 
+    labeller = label_parsed
+    ) +
   theme(
     legend.position = "top",
     plot.margin = margin(5, 15, 5, 15),
-    strip.text = element_text(size = 12)
+    strip.text = element_text(size = 12),
+    panel.spacing.x = unit(0.7, "cm")
   ) +
   labs(
     title = "Absolute % errors when using the posterior mean as our estimator",
     subtitle = str_c(
-      "Larger points are estimates based on larger simulated datasets"
+      "More replicates lead to better estimates"
     ),
     x = expression(rho),
     y = expression(frac(abs(bar(theta)[post] - theta[true]),theta[true])),
     col = NULL,
     fill = NULL,
-    caption = caption
+    #caption = caption
   )
 
 ggsave(
   plot = p,
   filename = "Results/Figures/param_errors_abs.png",
-  width = 8, height = 0.621 * 8, scale = 1.3
+  width = 8, height = 0.8 * 8, scale = 1.4
 )
-
-p
 ```
 
 
@@ -144,7 +148,6 @@ p <- posterior |>
   ) |> 
   ggplot(aes(rho, error, col = model, fill = model)) +
   geom_smooth(alpha = 0.4) +
-  geom_point(aes(size = n_replicate * n_id), alpha = alpha) +
   geom_hline(yintercept = 0, lty = 2) +
   scale_x_continuous(
     limits = c(-1, 1),
@@ -157,48 +160,51 @@ p <- posterior |>
   scale_color_brewer(palette = "Set1") +
   scale_fill_brewer(palette = "Set1") +
   guides(size = "none") +
-  facet_wrap("variable", scales = "free_y", labeller = label_parsed) +
+  facet_grid(
+    rows = vars(variable),
+    cols = vars(n_replicate), 
+    scales = "free_y", 
+    labeller = label_parsed
+    ) +
   theme(
     legend.position = "top",
     plot.margin = margin(5, 15, 5, 15),
-    strip.text = element_text(size = 12)
+    strip.text = element_text(size = 12), 
+    panel.spacing.x = unit(0.7, "cm")
   ) +
   labs(
     title = "Errors when using the posterior mean as our estimator",
     subtitle = str_c(
-      "Larger points are estimates based on larger simulated datasets"
+      "More replicates lead to better estimates"
     ),
     x = expression(rho),
     y = expression(bar(theta)[post] - theta[true]),
     col = NULL,
     fill = NULL,
-    caption = caption
+    #caption = caption
   )
 
 ggsave(
   plot = p,
   filename = "Results/Figures/param_errors.png",
-  width = 8, height = 0.621 * 8, scale = 1.3
+  width = 8, height = 0.8 * 8, scale = 1.4
 )
-
-p
 ```
 
 ```{r}
 p <- posterior |> 
-  filter(variable == "log_lik") |> 
+  filter(
+    variable == "log_lik"
+    ) |> 
   mutate(
     mean_log_lik = posterior_mean / (n_replicate * n_id)
   ) |> 
   ggplot(aes(rho, mean_log_lik, col = model)) +
   geom_smooth(aes(fill = model), color = NA, alpha = 0.4) +
-  geom_point(
-    alpha = alpha,
-    aes(size = (n_replicate * n_id))
-  ) +
   geom_labelsmooth(
     aes(label = model, hjust = model),
-    size = 5
+    text_only = TRUE,
+    size = 3
   ) +
   scale_x_continuous(
     limits = c(-1, 1),
@@ -206,7 +212,12 @@ p <- posterior |>
   ) +
   scale_color_brewer(palette = "Set1") +
   scale_fill_brewer(palette = "Set1") +
-  scale_hjust_manual(values = c(0.1, 0.5, 0.95)) +
+  scale_hjust_manual(values = c(0.9, 0.5, 0.1)) +
+  facet_wrap(
+    "n_replicate", 
+    scales = "free", 
+    labeller = label_both
+    ) +
   theme(
     legend.position = "none",
     plot.margin = margin(t = 5, r = 15, b = 5, l = 15)
@@ -214,11 +225,11 @@ p <- posterior |>
   labs(
     title = "The elppd gains from the AR(1) Copula increase with higher autocorrelations",
     subtitle = str_c(
-      "Larger points are estimates based on larger simulated datasets"
+      "The Two-Step model is close to the true model with 20 or more replicates"
     ),
     x = expression(rho),
     y = "elppd",
-    caption = caption
+    #caption = caption
   )
 
 ggsave(
@@ -226,8 +237,6 @@ ggsave(
   filename = "Results/Figures/elppd.png",
   width = 8, height = 0.621 * 8, scale = 1.3
 )
-
-p
 ```
 
 
@@ -240,7 +249,10 @@ p
 logit <- function(x) log(x / (1 - x))
 inv_logit <- function(x) 1 / (1 + exp(-x))
 p <- posterior |> 
-  filter(variable == "log_lik") |> 
+  filter(
+    variable == "log_lik",
+    posterior_mean > -100000
+    ) |> 
   mutate(
     mean_log_lik = posterior_mean / (n_replicate * n_id)
   ) |> 
@@ -260,11 +272,8 @@ p <- posterior |>
   ) +
   geom_labelsmooth(
     aes(col = name, label = name, hjust = name),
-    text_only = TRUE
-  ) +
-  geom_point(
-    alpha = alpha,
-    aes(size = (n_replicate * n_id), col = name)
+    text_only = TRUE, 
+    size = 3
   ) +
   scale_x_continuous(
     limits = c(-1, 1),
@@ -272,20 +281,25 @@ p <- posterior |>
   ) +
   scale_color_brewer(palette = "Set1") +
   scale_fill_brewer(palette = "Set1") +
-  scale_hjust_manual(values = c(0.6, 0.4)) +
+  scale_hjust_manual(values = c(0.8, 0.2)) +
+  facet_wrap(
+    "n_replicate", 
+    scales = "free",
+    labeller = label_both 
+    ) +
   theme(
     legend.position = "none",
     plot.margin = margin(t = 5, r = 15, b = 5, l = 15)
   ) +
   labs(
-    title = "The elppd gains from the AR(1) Copula increase with higher autocorrelations",
+    title = "Comparing the models to the i.i.d. model",
     subtitle = str_c(
-      "Larger points are estimates based on larger simulated datasets"
+      "The Two-Step model is close to the true model with 20 or more replicates"
     ),
     # x = expression(paste("logit(", rho, ")")),
     x = expression(rho),
     y = expression(paste(elppd[AR(1)] - elppd[i.i.d.])),
-    caption = caption
+    #caption = caption
   )
 
 
@@ -294,8 +308,6 @@ ggsave(
   filename = "Results/Figures/diff_elppd.png",
   width = 8, height = 0.621 * 8, scale = 1.3
 )
-
-p
 ```
 
 
@@ -303,8 +315,143 @@ p
 ```{r}
 posterior |>
   filter(
-    str_detect(model, "Two")
+    str_detect(model, "Step")
   ) |>
-  distinct(simulation, Q_diag_mult) |>
-  count(Q_diag_mult)
+  distinct(simulation, model, Q_diag_mult) |>
+  mutate(
+    Q_diag_mult = 1 * (Q_diag_mult > 1)
+  ) |> 
+  count(Q_diag_mult, model) |>
+  mutate(
+    p = n / sum(n),
+    .by = model
+  ) |> 
+  select(-n) |> 
+  pivot_wider(names_from = model, values_from = p)
 ```
+
+
+```{r}
+plot_dat <- posterior |> 
+  filter(
+    variable == "log_lik",
+    model != "i.i.d. Copula"
+    ) |> 
+  mutate(
+    mean_log_lik = posterior_mean / (n_replicate * n_id)
+  ) |> 
+  select(
+    model, mean_log_lik, simulation, n_id, n_replicate
+  ) |> 
+  pivot_wider(names_from = model, values_from = mean_log_lik) |> 
+  mutate(
+    diff = `Two-Step Estimation` - `AR(1) Copula`
+  ) |> 
+  summarise(
+    diff = mean(diff),
+    .by = c(n_id, n_replicate)
+  ) |> 
+  mutate(
+    diff = pmin(0, diff)
+  )
+
+p <- plot_dat |> 
+  ggplot(aes(n_replicate, n_id)) +
+  geom_tile(aes(fill = diff)) +
+  scale_x_log10(
+    breaks = unique(plot_dat$n_replicate)
+  ) +
+  scale_y_log10(
+    breaks = unique(plot_dat$n_id)
+  ) +
+  scale_fill_gradient(
+    high = "white",
+    low = muted("red"),
+    labels = \(x) scales::percent(exp(x) - 1)
+  ) +
+  coord_cartesian(
+    expand = FALSE
+  ) +
+  labs(
+    x = "Number of Replicates",
+    y = "Number of distinct IDs",
+    fill = NULL,
+    subtitle = expression(paste(elppd[Two-Step] - elppd[AR(1)])),
+    title = "When does the two-step model do as well as the correct AR(1) model?",
+    #caption = caption
+  )
+
+p
+
+ggsave(
+  plot = p,
+  filename = "Results/Figures/diff_elppd_by_size.png",
+  width = 8, height = 0.9 * 8, scale = 1.3
+)
+```
+
+
+```{r}
+plot_dat <- posterior |> 
+  filter(
+    variable == "log_lik",
+    model != "i.i.d. Copula"
+  ) |> 
+  mutate(
+    mean_log_lik = posterior_mean / (n_replicate * n_id)
+  ) |> 
+  select(
+    model, mean_log_lik, simulation, n_id, n_replicate
+  ) |> 
+  pivot_wider(names_from = model, values_from = mean_log_lik) |> 
+  mutate(
+    diff = `Two-Step Estimation` - `AR(1) Copula`
+  ) |> 
+  summarise(
+    diff = mean(diff),
+    .by = c(n_id, n_replicate)
+  ) |> 
+  mutate(
+    diff = pmin(0, diff)
+  )
+
+p <- plot_dat |> 
+  ggplot(aes(n_id, n_replicate / n_id)) +
+  geom_tile(
+    aes(fill = diff)
+    ) +
+  geom_hline(
+    yintercept = 1, 
+    lty = 2,
+    alpha = 0.5
+  ) +
+  scale_x_log10(
+  ) +
+  scale_y_log10(
+  ) +
+  scale_fill_gradient(
+    high = "white",
+    low = muted("red"),
+    labels = \(x) scales::percent(exp(x) - 1)
+  ) +
+  coord_cartesian(
+    expand = FALSE
+  ) +
+  labs(
+    x = "Number of IDs",
+    y = expression(frac(N[replicates],N[id])),
+    fill = NULL,
+    subtitle = "Difference in elppd between the AR(1) model and the two-step model",
+    title = "The number of replicates needed scales with the number of distinct IDs",
+    #caption = caption
+  )
+
+p
+
+ggsave(
+  plot = p,
+  filename = "Results/Figures/diff_elppd_by_size2.png",
+  width = 8, height = 0.9 * 8, scale = 1.3
+)
+```
+
