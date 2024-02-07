@@ -41,12 +41,11 @@ posterior <- open_dataset(
     .by = simulation
   ) |> 
   mutate(
-    model = fct_relevel(model, "copula", "two step", "three step", "iid") |> 
+    model = fct_relevel(model, "copula", "two step", "iid") |> 
     fct_recode(
       "AR(1) Copula" = "copula",
       "i.i.d. Copula" = "iid",
-      "Two-Step Estimation" = "two step",
-      "Three-Step Estimation" = "three step"
+      "Three-Step Estimation" = "two step"
     )
   ) 
 caption <- bquote(
@@ -200,7 +199,7 @@ p <- posterior |>
     mean_log_lik = posterior_mean / (n_replicate * n_id)
   ) |> 
   ggplot(aes(rho, mean_log_lik, col = model)) +
-  geom_smooth(aes(fill = model), color = NA, alpha = 0.4) +
+  geom_smooth(aes(fill = model, col = model), alpha = 0.4) +
   geom_labelsmooth(
     aes(label = model, hjust = model),
     text_only = TRUE,
@@ -225,7 +224,7 @@ p <- posterior |>
   labs(
     title = "The elppd gains from the AR(1) Copula increase with higher autocorrelations",
     subtitle = str_c(
-      "The Two-Step model is close to the true model with 20 or more replicates"
+      "The Three-Step model is close to the true model with 20 or more replicates"
     ),
     x = expression(rho),
     y = "elppd",
@@ -294,11 +293,11 @@ p <- posterior |>
   labs(
     title = "Comparing the models to the i.i.d. model",
     subtitle = str_c(
-      "The Two-Step model is close to the true model with 20 or more replicates"
+      "The Three-Step model is close to the true model with 20 or more replicates"
     ),
     # x = expression(paste("logit(", rho, ")")),
     x = expression(rho),
-    y = expression(paste(elppd[AR(1)] - elppd[i.i.d.])),
+    y = expression(paste(elppd - elppd[i.i.d.])),
     #caption = caption
   )
 
@@ -310,26 +309,115 @@ ggsave(
 )
 ```
 
+```{r}
+p <- posterior |> 
+  filter(
+    variable == "log_lik",
+    model != "i.i.d. Copula"
+    ) |> 
+  mutate(
+    mean_log_lik = posterior_mean / (n_replicate * n_id)
+  ) |> 
+  select(
+    model, mean_log_lik, simulation, rho, n_id, n_replicate
+  ) |> 
+  pivot_wider(names_from = model, values_from = mean_log_lik) |> 
+  mutate(
+    diff = `Three-Step Estimation` - `AR(1) Copula`
+  ) |> 
+  ggplot(aes(rho, diff)) +
+  geom_hline(yintercept = 0, lty = 2, alpha = 0.5, linewidth = 0.5) + 
+  geom_smooth(
+    alpha = 0.1
+  ) +
+  scale_x_continuous(
+    limits = c(-1, 1),
+    expand = expansion()
+  ) +
+  scale_color_brewer(palette = "Set1") +
+  scale_fill_brewer(palette = "Set1") +
+  scale_hjust_manual(values = c(0.8, 0.2)) +
+  facet_grid(
+    cols = vars(n_replicate),
+    scales = "free",
+    labeller = label_both 
+    ) +
+  theme(
+    legend.position = "none",
+    plot.margin = margin(t = 5, r = 15, b = 5, l = 15),
+    panel.spacing.x = unit(0.7, "cm")
+  ) +
+  coord_cartesian(
+    ylim = c(-0.3, 0.1)
+  ) +
+  labs(
+    title = "Comparing the three-step model to the AR(1) model",
+    subtitle = str_c(
+      "The Three-Step model is close to the true model with 20 or more replicates"
+    ),
+    # x = expression(paste("logit(", rho, ")")),
+    x = expression(rho),
+    y = expression(paste(elppd[Three-Step] - elppd[AR(1)])),
+    #caption = caption
+  )
+
+
+ggsave(
+  plot = p,
+  filename = "Results/Figures/diff_elppd_ar1.png",
+  width = 8, height = 0.621 * 8, scale = 1.3
+)
+```
+
 
 
 ```{r}
 posterior |>
   filter(
-    str_detect(model, "Step")
+    str_detect(model, "Step"),
+    n_replicate >= 20
   ) |>
-  distinct(simulation, model, Q_diag_mult) |>
   mutate(
-    Q_diag_mult = 1 * (Q_diag_mult > 1)
+    Q_diag_mult = if_else(
+      Q_diag_mult == 0, 
+      Q_diag_mult,
+      round(Q_diag_mult, 2)
+    )
   ) |> 
-  count(Q_diag_mult, model) |>
+  distinct(simulation, Q_diag_mult) |>
+  count(Q_diag_mult) |>
   mutate(
-    p = n / sum(n),
-    .by = model
-  ) |> 
-  select(-n) |> 
-  pivot_wider(names_from = model, values_from = p)
+    p = n / sum(n)
+  ) 
 ```
 
+```{r}
+#| eval: false
+posterior |> 
+  filter(
+    str_detect(model, "Step")
+  ) |>
+  mutate(
+    Q_diag_mult = if_else(
+      Q_diag_mult == 0, 
+      Q_diag_mult,
+      round(Q_diag_mult, 2)
+    )
+  ) |> 
+  distinct(simulation, Q_diag_mult) |>
+  count(Q_diag_mult) |>
+  mutate(
+    p = n / sum(n)
+  ) |> 
+  filter(
+    Q_diag_mult > 1
+  ) |> 
+  ggplot(aes(Q_diag_mult, p)) +
+  stat_smooth(
+    geom = "area",
+    span = 0.9
+  )
+```
 
 ```{r}
 plot_dat <- posterior |> 
@@ -345,7 +433,7 @@ plot_dat <- posterior |>
   ) |> 
   pivot_wider(names_from = model, values_from = mean_log_lik) |> 
   mutate(
-    diff = `Two-Step Estimation` - `AR(1) Copula`
+    diff = `Three-Step Estimation` - `AR(1) Copula`
   ) |> 
   summarise(
     diff = mean(diff),
@@ -375,9 +463,9 @@ p <- plot_dat |>
   labs(
     x = "Number of Replicates",
     y = "Number of distinct IDs",
-    fill = NULL,
-    subtitle = expression(paste(elppd[Two-Step] - elppd[AR(1)])),
-    title = "When does the two-step model do as well as the correct AR(1) model?",
+    fill = "% difference",
+    title = "When does the three-step model do as well as the correct AR(1) model?",
+    subtitle = "Difference in elppd between the AR(1) model and the three-step model",
     #caption = caption
   )
 
@@ -405,7 +493,7 @@ plot_dat <- posterior |>
   ) |> 
   pivot_wider(names_from = model, values_from = mean_log_lik) |> 
   mutate(
-    diff = `Two-Step Estimation` - `AR(1) Copula`
+    diff = `Three-Step Estimation` - `AR(1) Copula`
   ) |> 
   summarise(
     diff = mean(diff),
@@ -426,8 +514,11 @@ p <- plot_dat |>
     alpha = 0.5
   ) +
   scale_x_log10(
+    breaks = 5 * 2^(0:5)
   ) +
   scale_y_log10(
+    breaks = 2^(-5:5),
+    labels = scales::label_log(base = 2)
   ) +
   scale_fill_gradient(
     high = "white",
@@ -440,8 +531,8 @@ p <- plot_dat |>
   labs(
     x = "Number of IDs",
     y = expression(frac(N[replicates],N[id])),
-    fill = NULL,
-    subtitle = "Difference in elppd between the AR(1) model and the two-step model",
+    fill = "% difference",
+    subtitle = "Difference in elppd between the AR(1) model and the three-step model",
     title = "The number of replicates needed scales with the number of distinct IDs",
     #caption = caption
   )

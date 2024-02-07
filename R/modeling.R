@@ -198,7 +198,7 @@ replicate_vector <- c(5, 10, 20, 40, 80, 160)
 replicate_weights <- rep(1, length(replicate_vector))
 replicate_weights <- replicate_weights / sum(replicate_weights)
 
-id_vector <- c(5, 10, 20, 40, 80)
+id_vector <- c(20, 40, 80)
 id_weights <- rep(1, length(id_vector))
 id_weights <- id_weights / sum(id_weights)
 
